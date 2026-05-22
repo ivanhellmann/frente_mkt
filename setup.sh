@@ -81,9 +81,6 @@ install_pdv() {
     echo "--- Instalando PDV ---"
     PDV_PATH="$SCRIPT_DIR/installers/FrenteInstall.exe"
     if [ -f "$PDV_PATH" ]; then
-        # Instala dependencias antes do PDV
-        instalar_dependencias_wine
-
         echo "Executando instalador via Wine: $PDV_PATH"
         # Wine nao funciona como root — executa como o usuario que chamou o sudo
         if [ "$EUID" -eq 0 ] && [ -n "$SUDO_USER" ]; then
@@ -156,7 +153,7 @@ if [ "$1" = "_instalar_tudo" ]; then
     echo "=========================================="
     echo "   INICIANDO INSTALAÇÃO COMPLETA"
     echo "=========================================="
-    install_wine && install_and_configure_rustdesk && install_pdv && change_wallpaper
+    install_wine && instalar_dependencias_wine && install_and_configure_rustdesk && install_pdv && change_wallpaper
     echo "=========================================="
     echo "   INSTALAÇÃO CONCLUÍDA!"
     echo "=========================================="
@@ -181,8 +178,8 @@ echo "=========================================="
 read -p "Escolha uma opção: " opt
 
 case $opt in
-    1) install_wine && install_and_configure_rustdesk && install_pdv && change_wallpaper ;;
-    2) install_wine && install_pdv ;;
+    1) install_wine && instalar_dependencias_wine && install_and_configure_rustdesk && install_pdv && change_wallpaper ;;
+    2) install_wine && instalar_dependencias_wine && install_pdv ;;
     3) install_and_configure_rustdesk ;;
     4) configure_rustdesk ;;
     5) change_wallpaper ;;
