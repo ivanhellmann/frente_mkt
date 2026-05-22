@@ -97,18 +97,61 @@ install_pdv() {
 change_wallpaper() {
     echo "--- Trocando Papel de Parede ---"
     IMG_PATH="$SCRIPT_DIR/assets/Walpaper_Market.jpg"
-    if [ -f "$IMG_PATH" ]; then
-        if pgrep -x "cinnamon" > /dev/null; then
-            gsettings set org.cinnamon.desktop.background picture-uri "file://${IMG_PATH}"
-        elif pgrep -x "mate-panel" > /dev/null; then
-            gsettings set org.mate.desktop.background picture-uri "file://${IMG_PATH}"
-        elif pgrep -x "xfce4-session" > /dev/null; then
-            xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s "${IMG_PATH}"
-        fi
-        echo "Papel de parede atualizado!"
-    else
-        echo "AVISO: Imagem assets/Walpaper_Market.jpg não encontrada."
+
+    if [ ! -f "$IMG_PATH" ]; then
+        echo "AVISO: Imagem assets/Walpaper_Market.jpg nao encontrada."
+        return 1
     fi
+
+    # Precisa rodar como usuario normal (gsettings/xfconf nao funcionam como root)
+    if [ "$EUID" -eq 0 ] && [ -n "$SUDO_USER" ]; then
+        RUN_AS_USER="$SUDO_USER"
+    else
+        RUN_AS_USER="$USER"
+    fi
+
+    # Detecta o DISPLAY do usuario
+    USER_DISPLAY=$(sudo -u "$RUN_AS_USER" bash -c 'echo $DISPLAY' 2>/dev/null)
+    if [ -z "$USER_DISPLAY" ]; then
+        USER_DISPLAY=":0"
+    fi
+
+    echo "Aplicando papel de parede para usuario: $RUN_AS_USER (DISPLAY=$USER_DISPLAY)"
+
+    if pgrep -x "cinnamon" > /dev/null; then
+        echo "Ambiente: Cinnamon"
+        sudo -u "$RUN_AS_USER" DISPLAY="$USER_DISPLAY" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $RUN_AS_USER)/bus"             gsettings set org.cinnamon.desktop.background picture-uri "file://${IMG_PATH}"
+
+    elif pgrep -x "mate-panel" > /dev/null; then
+        echo "Ambiente: MATE"
+        sudo -u "$RUN_AS_USER" DISPLAY="$USER_DISPLAY" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $RUN_AS_USER)/bus"             gsettings set org.mate.desktop.background picture-uri "file://${IMG_PATH}"
+
+    elif pgrep -x "xfce4-session" > /dev/null; then
+        echo "Ambiente: XFCE"
+        # Aplica em todos os monitores e workspaces encontrados
+        PROPS=$(sudo -u "$RUN_AS_USER" DISPLAY="$USER_DISPLAY" xfconf-query -c xfce4-desktop -l 2>/dev/null | grep "last-image")
+        if [ -n "$PROPS" ]; then
+            echo "$PROPS" | while read -r PROP; do
+                echo "  Aplicando em: $PROP"
+                sudo -u "$RUN_AS_USER" DISPLAY="$USER_DISPLAY"                     xfconf-query -c xfce4-desktop -p "$PROP" -s "$IMG_PATH"
+            done
+        else
+            # Fallback: tenta o caminho padrão
+            sudo -u "$RUN_AS_USER" DISPLAY="$USER_DISPLAY"                 xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s "$IMG_PATH" 2>/dev/null
+            sudo -u "$RUN_AS_USER" DISPLAY="$USER_DISPLAY"                 xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitorHDMI-1/workspace0/last-image -s "$IMG_PATH" 2>/dev/null || true
+        fi
+
+    elif pgrep -x "gnome-shell" > /dev/null; then
+        echo "Ambiente: GNOME"
+        sudo -u "$RUN_AS_USER" DISPLAY="$USER_DISPLAY" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $RUN_AS_USER)/bus"             gsettings set org.gnome.desktop.background picture-uri "file://${IMG_PATH}"
+        sudo -u "$RUN_AS_USER" DISPLAY="$USER_DISPLAY" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $RUN_AS_USER)/bus"             gsettings set org.gnome.desktop.background picture-uri-dark "file://${IMG_PATH}"
+
+    else
+        echo "Ambiente nao identificado, tentando gsettings generico..."
+        sudo -u "$RUN_AS_USER" DISPLAY="$USER_DISPLAY" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $RUN_AS_USER)/bus"             gsettings set org.gnome.desktop.background picture-uri "file://${IMG_PATH}" 2>/dev/null || true
+    fi
+
+    echo "Papel de parede atualizado!"
 }
 
 sincronizar_repo() {
