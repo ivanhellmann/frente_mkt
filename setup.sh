@@ -57,9 +57,15 @@ install_pdv() {
     PDV_PATH="$SCRIPT_DIR/installers/FrenteInstall.exe"
     if [ -f "$PDV_PATH" ]; then
         echo "Executando instalador via Wine: $PDV_PATH"
-        wine "$PDV_PATH"
+        # Wine nao funciona como root — executa como o usuario que chamou o sudo
+        if [ "$EUID" -eq 0 ] && [ -n "$SUDO_USER" ]; then
+            echo "Rodando Wine como usuario: $SUDO_USER"
+            sudo -u "$SUDO_USER" DISPLAY="${DISPLAY:-:0}" wine "$PDV_PATH"
+        else
+            wine "$PDV_PATH"
+        fi
     else
-        echo "ERRO: Arquivo installers/FrenteInstall.exe não encontrado!"
+        echo "ERRO: Arquivo installers/FrenteInstall.exe nao encontrado!"
     fi
 }
 
