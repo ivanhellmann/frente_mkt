@@ -1,5 +1,6 @@
 #!/bin/bash
-# Descobre onde o script está para encontrar as pastas assets e installers
+REPO_DIR="/frente_mkt"
+REPO_URL="https://github.com/ivanhellmann/frente_mkt.git"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # ──────────────────────────────────────────────
@@ -79,37 +80,48 @@ change_wallpaper() {
     fi
 }
 
-atualizar_repositorio() {
-    REPO_DIR="/frente_mkt"
-    REPO_URL="https://github.com/ivanhellmann/frente_mkt.git"
+sincronizar_repo() {
+    echo "--- Sincronizando repositório ---"
 
     if [ -d "$REPO_DIR/.git" ]; then
-        echo "--- Repositório já existe, atualizando (git pull) ---"
+        # Repositório válido: apenas atualiza
+        echo "Repositório encontrado, atualizando..."
         sudo git -C "$REPO_DIR" pull
-    else
-        echo "--- Clonando repositório ---"
+    elif [ -d "$REPO_DIR" ]; then
+        # Pasta existe mas não é um repo git: apaga e clona
+        echo "Pasta $REPO_DIR existe mas não é um repositório git. Removendo e clonando..."
         sudo rm -rf "$REPO_DIR"
+        sudo git clone "$REPO_URL" "$REPO_DIR"
+    else
+        # Pasta não existe: clona normalmente
+        echo "Clonando repositório..."
         sudo git clone "$REPO_URL" "$REPO_DIR"
     fi
 
     sudo chmod +x "$REPO_DIR/setup.sh"
+    echo "Repositório sincronizado!"
 }
 
 # ──────────────────────────────────────────────
 # MODO AUTOMÁTICO: ./setup.sh auto
-# Atualiza o repo e instala tudo sem menu
 # ──────────────────────────────────────────────
 if [ "$1" = "auto" ]; then
     echo "=========================================="
     echo "   MODO AUTOMÁTICO - MINT"
     echo "=========================================="
-    atualizar_repositorio
-    # Reexecuta o script recém-atualizado para garantir a versão mais nova
-    exec sudo bash /frente_mkt/setup.sh _instalar_tudo
+
+    sincronizar_repo
+
+    # Reexecuta o script atualizado com flag interna para instalar tudo
+    exec sudo bash "$REPO_DIR/setup.sh" _instalar_tudo
 fi
 
+# Flag interna chamada após sincronização do repo
 if [ "$1" = "_instalar_tudo" ]; then
-    SCRIPT_DIR="/frente_mkt"
+    SCRIPT_DIR="$REPO_DIR"
+    echo "=========================================="
+    echo "   INICIANDO INSTALAÇÃO COMPLETA"
+    echo "=========================================="
     install_wine && install_and_configure_rustdesk && install_pdv && change_wallpaper
     echo "=========================================="
     echo "   INSTALAÇÃO CONCLUÍDA!"
@@ -140,7 +152,7 @@ case $opt in
     3) install_and_configure_rustdesk ;;
     4) configure_rustdesk ;;
     5) change_wallpaper ;;
-    6) atualizar_repositorio ;;
+    6) sincronizar_repo ;;
     7) exit 0 ;;
     *) echo "Opção inválida." ;;
 esac
