@@ -52,17 +52,45 @@ install_and_configure_rustdesk() {
     configure_rustdesk
 }
 
+instalar_dependencias_wine() {
+    echo "--- Instalando dependencias Wine (Winetricks) ---"
+
+    # Instala o winetricks se nao existir
+    if ! command -v winetricks &> /dev/null; then
+        echo "Instalando winetricks..."
+        sudo apt install -y winetricks
+    fi
+
+    # Executa como usuario normal (Wine nao funciona como root)
+    if [ "$EUID" -eq 0 ] && [ -n "$SUDO_USER" ]; then
+        RUN_AS="sudo -u $SUDO_USER DISPLAY=${DISPLAY:-:0} WINEDEBUG=-all"
+    else
+        RUN_AS="WINEDEBUG=-all"
+    fi
+
+    echo "Instalando Visual C++ Runtimes..."
+    $RUN_AS winetricks -q vcrun6 vcrun2005 vcrun2008 vcrun2010 vcrun2012 vcrun2013 vcrun2015
+
+    echo "Instalando componentes base do Windows..."
+    $RUN_AS winetricks -q mfc42 mfc100 gdiplus
+
+    echo "Dependencias instaladas!"
+}
+
 install_pdv() {
     echo "--- Instalando PDV ---"
     PDV_PATH="$SCRIPT_DIR/installers/FrenteInstall.exe"
     if [ -f "$PDV_PATH" ]; then
+        # Instala dependencias antes do PDV
+        instalar_dependencias_wine
+
         echo "Executando instalador via Wine: $PDV_PATH"
         # Wine nao funciona como root — executa como o usuario que chamou o sudo
         if [ "$EUID" -eq 0 ] && [ -n "$SUDO_USER" ]; then
             echo "Rodando Wine como usuario: $SUDO_USER"
-            sudo -u "$SUDO_USER" DISPLAY="${DISPLAY:-:0}" wine "$PDV_PATH"
+            sudo -u "$SUDO_USER" DISPLAY="${DISPLAY:-:0}" WINEDEBUG=-all wine "$PDV_PATH"
         else
-            wine "$PDV_PATH"
+            WINEDEBUG=-all wine "$PDV_PATH"
         fi
     else
         echo "ERRO: Arquivo installers/FrenteInstall.exe nao encontrado!"
